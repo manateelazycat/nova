@@ -87,8 +87,11 @@ class Nova:
     def event_dispatcher(self):
         try:
             while True:
-                message = self.event_queue.get(True)
-                print(message)
+                data = self.event_queue.get(True)
+
+                client = self.get_client_by_host(data["host"])
+                client.send_message(data["message"])
+
                 self.event_queue.task_done()
         except:
             logger.error(traceback.format_exc())
@@ -106,6 +109,26 @@ class Nova:
         self.message_queue.put(message)
 
     @threaded
+    def change_file(self, remote_file_host, remote_file_path, remote_file_args):
+        [start, end, range_length, change_text, position, before_char, buffer_name, prefix] = remote_file_args
+
+        self.send_message(remote_file_host, {
+            "command": "change_file",
+            "server": remote_file_host,
+            "path": remote_file_path,
+            "start": {
+                "line": start[1],
+                "character": start[3]
+            },
+            "end": {
+                "line": end[1],
+                "character": end[3]
+            },
+            "rangeLength": range_length,
+            "text": change_text
+        })
+
+    @threaded
     def handle_message(self, message):
         data = json.loads(message)
         command = data["command"]
@@ -117,6 +140,15 @@ class Nova:
                 path = data["path"]
                 eval_in_emacs("nova-open-file--response", data["server"], path, string_to_base64(data["content"]))
                 message_emacs(f"Open file {path} done.")
+
+    def get_client_by_host(self, server_host):
+        if server_host in self.client_dict:
+            client = self.client_dict[server_host]
+        else:
+            client = Client(server_host, "root", 9999, self.receive_message)
+            client.start()
+
+        return client
         
     @threaded
     def open_file(self, path):
@@ -125,19 +157,19 @@ class Nova:
 
             message_emacs(f"Open file {server_path}...")
 
-            if server_host in self.client_dict:
-                client = self.client_dict[server_host]
-            else:
-                client = Client(server_host, "root", 9999, self.receive_message)
-                client.start()
-
-            client.send_message({
+            self.send_message(server_host, {
                 "command": "open_file",
                 "server": server_host,
                 "path": server_path
             })
         else:
             message_emacs("Please input valid path match rule: 'ip:/path/file'.")
+
+    def send_message(self, host, message):
+        self.event_queue.put({
+            "host": host,
+            "message": message
+        })
 
     def cleanup(self):
         """Do some cleanup before exit python process."""

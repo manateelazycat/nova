@@ -269,12 +269,14 @@ Then Nova will start by gdb, please send new issue with `*nova*' buffer content 
         (read-only-mode -1)
         (erase-buffer)
         (insert (nova-decode-base64 content))
+        (goto-char (point-min))
 
         (let ((mode (nova-get-mode-name-from-file-path path)))
           (when mode
-            (funcall mode)))
-
-        (goto-char (point-min))))
+            (let ((nova-is-remote-file t)
+                  (nova-remote-file-host server)
+                  (nova-remote-file-path path))
+              (funcall mode))))))
 
     (switch-to-buffer buf-name)
 
@@ -290,6 +292,12 @@ Then Nova will start by gdb, please send new issue with `*nova*' buffer content 
 
 (defun nova-decode-base64 (base64-string)
   (decode-coding-string (base64-decode-string base64-string) 'utf-8))
+
+(defun nova-send-lsp-request (method &rest args)
+  (pcase method
+    ("change_file" (nova-deferred-chain
+                     (nova-epc-call-deferred nova-epc-process (read method) (append (list nova-remote-file-host nova-remote-file-path) args))))
+    (t (message "Send LSP request for Nova: %s %s" method args))))
 
 (provide 'nova)
 
