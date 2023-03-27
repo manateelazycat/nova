@@ -202,6 +202,10 @@ Then Nova will start by gdb, please send new issue with `*nova*' buffer content 
 
 (defvar nova-stop-process-hook nil)
 
+(defvar-local nova-is-remote-file nil)
+(defvar-local nova-remote-file-host nil)
+(defvar-local nova-remote-file-path nil)
+
 (defun nova-kill-process ()
   "Stop Nova process and kill all Nova buffers."
   (interactive)
@@ -258,7 +262,12 @@ Then Nova will start by gdb, please send new issue with `*nova*' buffer content 
 
         (goto-char (point-min))))
 
-    (switch-to-buffer buf-name)))
+    (switch-to-buffer buf-name)
+
+    (setq-local nova-is-remote-file t)
+    (setq-local nova-remote-file-host server)
+    (setq-local nova-remote-file-path path)
+    ))
 
 (defun nova-get-mode-name-from-file-path (file-path)
   (cdr (assoc file-path
