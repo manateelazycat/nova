@@ -86,8 +86,8 @@
   "The Nova Server.")
 
 (defvar nova-python-file (expand-file-name "nova.py" (if load-file-name
-                                                                   (file-name-directory load-file-name)
-                                                                 default-directory)))
+                                                         (file-name-directory load-file-name)
+                                                       default-directory)))
 
 (defvar nova-server-port nil)
 
@@ -178,11 +178,11 @@ Then Nova will start by gdb, please send new issue with `*nova*' buffer content 
     ;; start epc server and set `nova-server-port'
     (nova--start-epc-server)
     (let* ((nova-args (append
-                            (list nova-python-file)
-                            (list (number-to-string nova-server-port))
-                            (when nova-enable-profile
-                              (list "profile"))
-                            )))
+                       (list nova-python-file)
+                       (list (number-to-string nova-server-port))
+                       (when nova-enable-profile
+                         (list "profile"))
+                       )))
 
       ;; Set process arguments.
       (if nova-enable-debug
@@ -231,16 +231,18 @@ Then Nova will start by gdb, please send new issue with `*nova*' buffer content 
   "Call `nova--open-internal' upon receiving `start_finish' signal from server."
   ;; Make EPC process.
   (setq nova-epc-process (make-nova-epc-manager
-                               :server-process nova-internal-process
-                               :commands (cons nova-internal-process-prog nova-internal-process-args)
-                               :title (mapconcat 'identity (cons nova-internal-process-prog nova-internal-process-args) " ")
-                               :port nova-epc-port
-                               :connection (nova-epc-connect "localhost" nova-epc-port)
-                               ))
+                          :server-process nova-internal-process
+                          :commands (cons nova-internal-process-prog nova-internal-process-args)
+                          :title (mapconcat 'identity (cons nova-internal-process-prog nova-internal-process-args) " ")
+                          :port nova-epc-port
+                          :connection (nova-epc-connect "localhost" nova-epc-port)
+                          ))
   (nova-epc-init-epc-layer nova-epc-process)
-  (setq nova-is-starting nil)
+  (setq nova-is-starting nil))
 
-  (message "*******"))
+(defun nova-open-file (path)
+  (interactive "sPath: ")
+  (nova-call-async "open_file" path))
 
 (unless nova-is-starting
   (nova-start-process))

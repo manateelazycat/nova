@@ -22,11 +22,24 @@ import queue
 import threading
 import traceback
 import sys
-from pathlib import Path
+from functools import wraps
 from epc.server import ThreadingEPCServer
 from utils import (init_epc_client, eval_in_emacs, logger, close_epc_client)
+import paramiko
+import glob
+import os
+import json
 
-class MindWave:
+def threaded(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        thread = threading.Thread(target=func, args=args, kwargs=kwargs)
+        thread.start()
+        if hasattr(args[0], 'thread_queue'):
+            args[0].thread_queue.append(thread)
+    return wrapper
+
+class Nova:
     def __init__(self, args):
         # Init EPC client port.
         init_epc_client(int(args[0]))
@@ -59,6 +72,12 @@ class MindWave:
         self.message_thread = threading.Thread(target=self.message_dispatcher)
         self.message_thread.start()
 
+        # Build thread queue.
+        self.thread_queue = []
+
+        # Client dict.
+        self.client_dict = {}
+
         # Pass epc port and webengine codec information to Emacs when first start nova.
         eval_in_emacs('nova--first-start', self.server.server_address[1])
 
@@ -69,15 +88,6 @@ class MindWave:
         try:
             while True:
                 message = self.event_queue.get(True)
-            
-                if message["name"] == "open_file":
-                    self._open_file(message["content"])
-                elif message["name"] == "close_file":
-                    self._close_file(message["content"])
-                elif message["name"] == "action_func":
-                    (func_name, func_args) = message["content"]
-                    getattr(self, func_name)(*func_args)
-            
                 self.event_queue.task_done()
         except:
             logger.error(traceback.format_exc())
@@ -86,24 +96,85 @@ class MindWave:
         try:
             while True:
                 message = self.message_queue.get(True)
-                if message["name"] == "server_process_exit":
-                    self.handle_server_process_exit(message["content"])
-                else:
-                    logger.error("Unhandled nova message: %s" % message)
-            
+                self.handle_message(message)
                 self.message_queue.task_done()
         except:
             logger.error(traceback.format_exc())
+
+    def receive_message(self, message):
+        self.message_queue.put(message)
+
+    @threaded
+    def handle_message(self, message):
+        print("****** ", message)
+
+    @threaded
+    def open_file(self, path):
+        [server_host, server_path] = path.split(":")
+
+        if server_host in self.client_dict:
+            client = self.client_dict[server_host]
+        else:
+            client = Client(server_host, "root", 9999, self.receive_message)
+            client.start()
+
+        client.send_message({
+            "command": "open_file",
+            "path": server_path
+        })
 
     def cleanup(self):
         """Do some cleanup before exit python process."""
         close_epc_client()
 
+class Client(threading.Thread):
+    def __init__(self, ssh_host, ssh_user, server_port, callback):
+        threading.Thread.__init__(self)
+
+        self.ssh_host = ssh_host
+        self.ssh_user = ssh_user
+        self.server_port = server_port
+
+        self.callback = callback
+
+        self.ssh = self.connect_ssh()
+        self.transport = self.ssh.get_transport()
+        self.chan = self.transport.open_channel("direct-tcpip", (self.ssh_host, self.server_port), ('0.0.0.0', 0))
+
+    def ssh_pub_key(self):
+        ssh_dir = os.path.expanduser('~/.ssh')
+        pub_keys = glob.glob(os.path.join(ssh_dir, '*.pub'))
+        return pub_keys[0]
+
+    def connect_ssh(self):
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(self.ssh_host, username=self.ssh_user, key_filename=self.ssh_pub_key())
+        return ssh
+
+    def send_message(self, message):
+        data = json.dumps(message)
+        self.chan.sendall(f"{data}\n".encode("utf-8"))
+
+    def run(self):
+        while True:
+            response = b''
+
+            while True:
+                data = self.chan.recv(1024)
+                if not data:
+                    break
+                response += data
+
+                if response.endswith(b'\n'):
+                    message = response.decode('utf-8').rstrip()
+                    self.callback(message)
+                    break
+
 if __name__ == "__main__":
     if len(sys.argv) >= 3:
         import cProfile
         profiler = cProfile.Profile()
-        profiler.run("MindWave(sys.argv[1:])")
+        profiler.run("Nova(sys.argv[1:])")
     else:
-        MindWave(sys.argv[1:])
-    
+        Nova(sys.argv[1:])
