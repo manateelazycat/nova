@@ -245,17 +245,18 @@ Then Nova will start by gdb, please send new issue with `*nova*' buffer content 
   (nova-call-async "open_file" path))
 
 (defun nova-open-file--response(server path content)
-  (let ((buf-name (format "nova:%s:%s" server path)))
-    (with-current-buffer (get-buffer-create buf-name)
-      (read-only-mode -1)
-      (erase-buffer)
-      (insert (nova-decode-base64 content))
+  (let ((buf-name (format "nova %s:%s" server path)))
+    (unless (get-buffer buf-name)
+      (with-current-buffer (get-buffer-create buf-name)
+        (read-only-mode -1)
+        (erase-buffer)
+        (insert (nova-decode-base64 content))
 
-      (let ((mode (nova-get-mode-name-from-file-path path)))
-        (when mode
-          (funcall mode)))
+        (let ((mode (nova-get-mode-name-from-file-path path)))
+          (when mode
+            (funcall mode)))
 
-      (goto-char (point-min)))
+        (goto-char (point-min))))
 
     (switch-to-buffer buf-name)))
 
