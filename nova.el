@@ -165,6 +165,8 @@ Then Nova will start by gdb, please send new issue with `*nova*' buffer content 
     (nova-start-process)))
 
 (defvar nova-is-starting nil)
+(defvar nova-first-call-method nil)
+(defvar nova-first-call-args nil)
 
 (defun nova-restart-process ()
   "Stop and restart Nova process."
@@ -264,19 +266,20 @@ Then Nova will start by gdb, please send new issue with `*nova*' buffer content 
 
 (defun nova-open-file--response(server path content)
   (let ((buf-name (format "nova %s:%s" server path)))
-    (unless (get-buffer buf-name)
-      (with-current-buffer (get-buffer-create buf-name)
-        (read-only-mode -1)
-        (erase-buffer)
-        (insert (nova-decode-base64 content))
-        (goto-char (point-min))
+    (with-current-buffer (get-buffer-create buf-name)
+      (text-mode)
 
-        (let ((mode (nova-get-mode-name-from-file-path path)))
-          (when mode
-            (let ((nova-is-remote-file t)
-                  (nova-remote-file-host server)
-                  (nova-remote-file-path path))
-              (funcall mode))))))
+      (read-only-mode -1)
+      (erase-buffer)
+      (insert (nova-decode-base64 content))
+      (goto-char (point-min))
+
+      (let ((mode (nova-get-mode-name-from-file-path path)))
+        (when mode
+          (let ((nova-is-remote-file t)
+                (nova-remote-file-host server)
+                (nova-remote-file-path path))
+            (funcall mode)))))
 
     (switch-to-buffer buf-name)
 
