@@ -26,7 +26,6 @@ from functools import wraps
 from epc.server import ThreadingEPCServer
 from utils import (init_epc_client, eval_in_emacs, is_valid_ip_path, logger, close_epc_client, message_emacs, string_to_base64)
 import paramiko
-import base64
 import glob
 import os
 import json
