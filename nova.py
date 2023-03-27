@@ -148,6 +148,8 @@ class Nova:
             client = Client(server_host, "root", 9999, self.receive_message)
             client.start()
 
+            self.client_dict[server_host] = client
+
         return client
         
     @threaded
