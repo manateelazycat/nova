@@ -44,17 +44,20 @@ class Server:
 
         if command == "open_file":
             path = data["path"]
+            server = data["server"]
 
             if os.path.exists(path):
                 with open(path) as f:
                     response = {
                         "command": "open_file",
+                        "server": server,
                         "path": path,
                         "content": f.read()
                     }
             else:
                 response = {
                     "command": "open_file",
+                    "server": server,
                     "path": path,
                     "content": "",
                     "error": f"Cannot found file {path} on server."

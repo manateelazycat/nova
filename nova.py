@@ -24,8 +24,9 @@ import traceback
 import sys
 from functools import wraps
 from epc.server import ThreadingEPCServer
-from utils import (init_epc_client, eval_in_emacs, logger, close_epc_client, message_emacs)
+from utils import (init_epc_client, eval_in_emacs, is_valid_ip_path, logger, close_epc_client, message_emacs, string_to_base64)
 import paramiko
+import base64
 import glob
 import os
 import json
@@ -88,6 +89,7 @@ class Nova:
         try:
             while True:
                 message = self.event_queue.get(True)
+                print(message)
                 self.event_queue.task_done()
         except:
             logger.error(traceback.format_exc())
@@ -113,26 +115,30 @@ class Nova:
             if "error" in data:
                 message_emacs(data["error"])
             else:
-                print("******* ", data["content"])
                 path = data["path"]
+                eval_in_emacs("nova-open-file--response", data["server"], path, string_to_base64(data["content"]))
                 message_emacs(f"Open file {path} done.")
         
     @threaded
     def open_file(self, path):
-        [server_host, server_path] = path.split(":")
+        if is_valid_ip_path(path):
+            [server_host, server_path] = path.split(":")
 
-        message_emacs(f"Open file {server_path}...")
+            message_emacs(f"Open file {server_path}...")
 
-        if server_host in self.client_dict:
-            client = self.client_dict[server_host]
+            if server_host in self.client_dict:
+                client = self.client_dict[server_host]
+            else:
+                client = Client(server_host, "root", 9999, self.receive_message)
+                client.start()
+
+            client.send_message({
+                "command": "open_file",
+                "server": server_host,
+                "path": server_path
+            })
         else:
-            client = Client(server_host, "root", 9999, self.receive_message)
-            client.start()
-
-        client.send_message({
-            "command": "open_file",
-            "path": server_path
-        })
+            message_emacs("Please input valid path match rule: 'ip:/path/file'.")
 
     def cleanup(self):
         """Do some cleanup before exit python process."""

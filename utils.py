@@ -230,3 +230,15 @@ def get_os_name():
 def parse_json_content(content):
     return json_parser.loads(content)
 
+def string_to_base64(text):
+    import base64
+
+    base64_bytes = base64.b64encode(text.encode("utf-8"))
+    base64_string = base64_bytes.decode("utf-8")
+
+    return base64_string
+
+def is_valid_ip_path(ip_path: str) -> bool:
+    import re
+    ip_path_regex = r'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?):(/[^\x00-\x1F]+)+/?$'
+    return re.fullmatch(ip_path_regex, ip_path)
