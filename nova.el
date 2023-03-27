@@ -157,8 +157,12 @@ Then Nova will start by gdb, please send new issue with `*nova*' buffer content 
 
 (defun nova-call-async (method &rest args)
   "Call Python EPC function METHOD and ARGS asynchronously."
-  (nova-deferred-chain
-    (nova-epc-call-deferred nova-epc-process (read method) args)))
+  (if (nova-epc-live-p nova-epc-process)
+      (nova-deferred-chain
+        (nova-epc-call-deferred nova-epc-process (read method) args))
+    (setq nova-first-call-method method)
+    (setq nova-first-call-args args)
+    (nova-start-process)))
 
 (defvar nova-is-starting nil)
 
@@ -242,7 +246,17 @@ Then Nova will start by gdb, please send new issue with `*nova*' buffer content 
                           :connection (nova-epc-connect "localhost" nova-epc-port)
                           ))
   (nova-epc-init-epc-layer nova-epc-process)
-  (setq nova-is-starting nil))
+  (setq nova-is-starting nil)
+
+  (when (and nova-first-call-method
+             nova-first-call-args)
+    (nova-deferred-chain
+      (nova-epc-call-deferred nova-epc-process
+                              (read nova-first-call-method)
+                              nova-first-call-args)
+      (setq nova-first-call-method nil)
+      (setq nova-first-call-args nil)
+      )))
 
 (defun nova-open-file (path)
   (interactive "sPath: ")
@@ -276,9 +290,6 @@ Then Nova will start by gdb, please send new issue with `*nova*' buffer content 
 
 (defun nova-decode-base64 (base64-string)
   (decode-coding-string (base64-decode-string base64-string) 'utf-8))
-
-(unless nova-is-starting
-  (nova-start-process))
 
 (provide 'nova)
 
