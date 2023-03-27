@@ -1,4 +1,5 @@
 import socket
+import os
 import json
 from threading import Thread
 
@@ -43,13 +44,24 @@ class Server:
 
         if command == "open_file":
             path = data["path"]
-            with open(path) as f:
+
+            if os.path.exists(path):
+                with open(path) as f:
+                    response = {
+                        "command": "open_file",
+                        "path": path,
+                        "content": f.read()
+                    }
+            else:
                 response = {
                     "command": "open_file",
-                    "content": f.read()
+                    "path": path,
+                    "content": "",
+                    "error": f"Cannot found file {path} on server."
                 }
 
-                client_socket.send(f"{response}\n".encode("utf-8"))
+            response_data = json.dumps(response)
+            client_socket.send(f"{response_data}\n".encode("utf-8"))
 
 server = Server("0.0.0.0", 9999)
 server.start()

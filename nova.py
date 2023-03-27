@@ -24,7 +24,7 @@ import traceback
 import sys
 from functools import wraps
 from epc.server import ThreadingEPCServer
-from utils import (init_epc_client, eval_in_emacs, logger, close_epc_client)
+from utils import (init_epc_client, eval_in_emacs, logger, close_epc_client, message_emacs)
 import paramiko
 import glob
 import os
@@ -106,11 +106,22 @@ class Nova:
 
     @threaded
     def handle_message(self, message):
-        print("****** ", message)
+        data = json.loads(message)
+        command = data["command"]
 
+        if command == "open_file":
+            if "error" in data:
+                message_emacs(data["error"])
+            else:
+                print("******* ", data["content"])
+                path = data["path"]
+                message_emacs(f"Open file {path} done.")
+        
     @threaded
     def open_file(self, path):
         [server_host, server_path] = path.split(":")
+
+        message_emacs(f"Open file {server_path}...")
 
         if server_host in self.client_dict:
             client = self.client_dict[server_host]
