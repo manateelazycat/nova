@@ -69,8 +69,8 @@ class Server:
             self.handle_save_file(data, client_socket)
         elif command == "close_file":
             self.handle_close_file(data, client_socket)
-        elif command == "lsp_request":
-            self.handle_lsp_request(data, client_socket)
+        elif command == "change_file":
+            self.handle_change_file(data, client_socket)
 
     def handle_open_file(self, data, client_socket):
         path = data["path"]
@@ -108,15 +108,15 @@ class Server:
 
         content = self.file_dict[path]
 
-        start_line = data["start"]['line']
-        start_char = data['start']['character']
-        end_line = data['end']['line']
-        end_char = data['end']['character']
+        start_line = data["args"][0]['line']
+        start_char = data['args'][0]['character']
+        end_line = data['args'][1]['line']
+        end_char = data['args'][1]['character']
 
         start_pos = get_position(content, start_line, start_char)
         end_pos = get_position(content, end_line, end_char)
 
-        content = content[:start_pos] + data['text'] + content[end_pos:]
+        content = content[:start_pos] + data['args'][3] + content[end_pos:]
 
         self.file_dict[path] = content
 
@@ -136,15 +136,6 @@ class Server:
         if path in self.file_dict:
             self.file_dict[path] = ""
             print(f"Close file {path}")
-
-    def handle_lsp_request(self, data, client_socket):
-        if data["method"] == "change_file":
-            self.handle_change_file({
-                "path": data["path"],
-                "start": data["args"][0],
-                "end": data["args"][1],
-                "text": data["args"][3]
-            }, client_socket)
 
 def get_position(content, line, character):
     lines = content.split('\n')

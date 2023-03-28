@@ -110,13 +110,21 @@ class Nova:
 
     @threaded
     def lsp_request(self, remote_file_host, remote_file_path, method, args):
-        self.send_message(remote_file_host, {
-            "command": "lsp_request",
-            "server": remote_file_host,
-            "path": remote_file_path,
-            "method": method,
-            "args": list(map(epc_arg_transformer, args))
-        })
+        # self.send_message(remote_file_host, {
+        #     "command": "lsp_request",
+        #     "server": remote_file_host,
+        #     "path": remote_file_path,
+        #     "method": method,
+        #     "args": list(map(epc_arg_transformer, args))
+        # })
+
+        if method == "change_file":
+            self.send_message(remote_file_host, {
+                "command": "change_file",
+                "server": remote_file_host,
+                "path": remote_file_path,
+                "args": list(map(epc_arg_transformer, args))
+            })
 
     @threaded
     def save_file(self, remote_file_host, remote_file_path):
