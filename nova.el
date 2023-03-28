@@ -304,10 +304,11 @@ Then Nova will start by gdb, please send new issue with `*nova*' buffer content 
   (decode-coding-string (base64-decode-string base64-string) 'utf-8))
 
 (defun nova-send-lsp-request (method &rest args)
-  (pcase method
-    ("change_file" (nova-deferred-chain
-                     (nova-epc-call-deferred nova-epc-process (read method) (append (list nova-remote-file-host nova-remote-file-path) args))))
-    (t (message "Send LSP request for Nova: %s %s" method args))))
+  (nova-deferred-chain
+    (nova-epc-call-deferred nova-epc-process
+                            (read "lsp_request")
+                            (append
+                             (list nova-remote-file-host nova-remote-file-path method) args))))
 
 (defun nova-save-buffer ()
   (interactive)

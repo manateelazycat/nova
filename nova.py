@@ -24,7 +24,7 @@ import traceback
 import sys
 from functools import wraps
 from epc.server import ThreadingEPCServer
-from utils import (init_epc_client, eval_in_emacs, is_valid_ip_path, logger, close_epc_client, message_emacs, string_to_base64)
+from utils import (init_epc_client, eval_in_emacs, is_valid_ip_path, logger, close_epc_client, message_emacs, string_to_base64, epc_arg_transformer)
 import paramiko
 import glob
 import os
@@ -109,23 +109,13 @@ class Nova:
         self.message_queue.put(message)
 
     @threaded
-    def change_file(self, remote_file_host, remote_file_path, remote_file_args):
-        [start, end, range_length, change_text, position, before_char, buffer_name, prefix] = remote_file_args
-
+    def lsp_request(self, remote_file_host, remote_file_path, method, args):
         self.send_message(remote_file_host, {
-            "command": "change_file",
+            "command": "lsp_request",
             "server": remote_file_host,
             "path": remote_file_path,
-            "start": {
-                "line": start[1],
-                "character": start[3]
-            },
-            "end": {
-                "line": end[1],
-                "character": end[3]
-            },
-            "rangeLength": range_length,
-            "text": change_text
+            "method": method,
+            "args": list(map(epc_arg_transformer, args))
         })
 
     @threaded
@@ -219,8 +209,11 @@ class Client(threading.Thread):
         return ssh
 
     def send_message(self, message):
-        data = json.dumps(message)
-        self.chan.sendall(f"{data}\n".encode("utf-8"))
+        try:
+            data = json.dumps(message)
+            self.chan.sendall(f"{data}\n".encode("utf-8"))
+        except:
+            logger.error(traceback.format_exc())
 
     def run(self):
         chan_file = self.chan.makefile('r')
