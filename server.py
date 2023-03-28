@@ -49,22 +49,16 @@ class Server:
             print(traceback.format_exc())
 
     def handle_client(self, client_socket):
-        request = b''
+        client_file = client_socket.makefile('r')
         while True:
-            data = client_socket.recv(1024)
-            if not data:
+            message = client_file.readline().strip()
+            if not message:
                 break
-            request += data
-
-            if request.endswith(b'\n'):
-                message = request.decode('utf-8').rstrip()
-                self.handle_message(message, client_socket)
-                request = b''
-
+            self.handle_message(message, client_socket)
         client_socket.close()
 
     def handle_message(self, message, client_socket):
-        print(f"[*] {message}")
+        print(f"[*] '{message}'")
 
         data = json.loads(message)
         command = data["command"]

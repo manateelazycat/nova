@@ -203,23 +203,19 @@ class Client(threading.Thread):
         return ssh
 
     def send_message(self, message):
+        print(f"******\n'{message}'")
+
         data = json.dumps(message)
         self.chan.sendall(f"{data}\n".encode("utf-8"))
 
     def run(self):
+        chan_file = self.chan.makefile('r')
         while True:
-            response = b''
-
-            while True:
-                data = self.chan.recv(1024)
-                if not data:
-                    break
-                response += data
-
-                if response.endswith(b'\n'):
-                    message = response.decode('utf-8').rstrip()
-                    self.callback(message)
-                    break
+            message = chan_file.readline().strip()
+            if not message:
+                break
+            self.callback(message)
+        self.chan.close()
 
 if __name__ == "__main__":
     if len(sys.argv) >= 3:
