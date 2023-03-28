@@ -302,6 +302,14 @@ Then Nova will start by gdb, please send new issue with `*nova*' buffer content 
                      (nova-epc-call-deferred nova-epc-process (read method) (append (list nova-remote-file-host nova-remote-file-path) args))))
     (t (message "Send LSP request for Nova: %s %s" method args))))
 
+(defun nova-save-buffer ()
+  (interactive)
+  (if nova-is-remote-file
+      (progn
+        (nova-call-async "save_file" nova-remote-file-host nova-remote-file-path)
+        (message "Save %s:%s done." nova-remote-file-host nova-remote-file-path))
+    (message "nova-save-buffer only for nova file.")))
+
 (provide 'nova)
 
 ;;; nova.el ends here
