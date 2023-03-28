@@ -137,6 +137,14 @@ class Nova:
         })
 
     @threaded
+    def close_file(self, remote_file_host, remote_file_path):
+        self.send_message(remote_file_host, {
+            "command": "close_file",
+            "server": remote_file_host,
+            "path": remote_file_path
+        })
+
+    @threaded
     def handle_message(self, message):
         data = json.loads(message)
         command = data["command"]

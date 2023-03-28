@@ -274,6 +274,8 @@ Then Nova will start by gdb, please send new issue with `*nova*' buffer content 
       (insert (nova-decode-base64 content))
       (goto-char (point-min))
 
+      (add-hook 'kill-buffer-hook 'nova-kill-buffer nil t)
+
       (let ((mode (nova-get-mode-name-from-file-path path)))
         (when mode
           (let ((nova-is-remote-file t)
@@ -286,6 +288,11 @@ Then Nova will start by gdb, please send new issue with `*nova*' buffer content 
     (setq-local nova-is-remote-file t)
     (setq-local nova-remote-file-host server)
     (setq-local nova-remote-file-path path)
+    ))
+
+(defun nova-kill-buffer ()
+  (when nova-is-remote-file
+    (nova-call-async "close_file" nova-remote-file-host nova-remote-file-path)
     ))
 
 (defun nova-get-mode-name-from-file-path (file-path)

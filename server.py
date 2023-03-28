@@ -69,6 +69,8 @@ class Server:
             self.handle_change_file(data, client_socket)
         elif command == "save_file":
             self.handle_save_file(data, client_socket)
+        elif command == "close_file":
+            self.handle_close_file(data, client_socket)
 
     def handle_open_file(self, data, client_socket):
         path = data["path"]
@@ -129,6 +131,13 @@ class Server:
                 print(f"Write data to file {path}")
         else:
             print(f"Write file {path} because path not exist in file_dict somehow.")
+
+    def handle_close_file(self, data, client_socket):
+        path = data["path"]
+
+        if path in self.file_dict:
+            self.file_dict[path] = ""
+            print(f"Close file {path}")
 
 def get_position(content, line, character):
     lines = content.split('\n')
