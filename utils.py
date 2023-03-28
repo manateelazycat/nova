@@ -74,6 +74,8 @@ def eval_in_emacs(method_name, *args):
     # Call eval-in-emacs elisp function.
     epc_client.call("eval-in-emacs", [sexp])    # type: ignore
 
+def eval_sexp_in_emacs(sexp):
+    epc_client.call("eval-in-emacs", [sexp])
 
 def message_emacs(message: str):
     """Message to Emacs with prefix."""

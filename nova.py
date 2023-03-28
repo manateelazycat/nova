@@ -24,7 +24,8 @@ import traceback
 import sys
 from functools import wraps
 from epc.server import ThreadingEPCServer
-from utils import (init_epc_client, eval_in_emacs, is_valid_ip_path, logger, close_epc_client, message_emacs, string_to_base64, epc_arg_transformer)
+from utils import (init_epc_client, eval_in_emacs, is_valid_ip_path, logger, close_epc_client,
+                   message_emacs, string_to_base64, epc_arg_transformer, eval_sexp_in_emacs)
 import paramiko
 import glob
 import os
@@ -129,8 +130,12 @@ class Nova:
     def lsp_receiver_dispatcher(self):
         try:
             while True:
-                data = self.lsp_receiver_queue.get(True)
-                print("********** ", data)
+                message = self.lsp_receiver_queue.get(True)
+
+                data = json.loads(message)
+                if data["command"] == "eval-in-emacs":
+                    eval_sexp_in_emacs(data["sexp"])
+
                 self.lsp_receiver_queue.task_done()
         except:
             logger.error(traceback.format_exc())
