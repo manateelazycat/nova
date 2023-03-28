@@ -120,6 +120,8 @@ class Server:
 
         self.file_dict[path] = content
 
+        print(f"###\n{content}###\n")
+
     def handle_save_file(self, data, client_socket):
         path = data["path"]
 

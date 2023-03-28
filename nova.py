@@ -67,16 +67,25 @@ class Nova:
         self.event_loop = threading.Thread(target=self.event_dispatcher)
         self.event_loop.start()
 
-        # All LSP server response running in message_thread.
+        # All SSH server response running in message_thread.
         self.message_queue = queue.Queue()
         self.message_thread = threading.Thread(target=self.message_dispatcher)
         self.message_thread.start()
+
+        self.lsp_sender_queue = queue.Queue()
+        self.lsp_sender_thread = threading.Thread(target=self.lsp_sender_dispatcher)
+        self.lsp_sender_thread.start()
+
+        self.lsp_receiver_queue = queue.Queue()
+        self.lsp_receiver_thread = threading.Thread(target=self.lsp_receiver_dispatcher)
+        self.lsp_receiver_thread.start()
 
         # Build thread queue.
         self.thread_queue = []
 
         # Client dict.
         self.client_dict = {}
+        self.lsp_client_dict = {}
 
         # Pass epc port and webengine codec information to Emacs when first start nova.
         eval_in_emacs('nova--first-start', self.server.server_address[1])
@@ -105,19 +114,35 @@ class Nova:
         except:
             logger.error(traceback.format_exc())
 
+    def lsp_sender_dispatcher(self):
+        try:
+            while True:
+                data = self.lsp_sender_queue.get(True)
+
+                client = self.get_lsp_client_by_host(data["host"])
+                client.send_message(data["message"])
+
+                self.lsp_sender_queue.task_done()
+        except:
+            logger.error(traceback.format_exc())
+
+    def lsp_receiver_dispatcher(self):
+        try:
+            while True:
+                data = self.lsp_receiver_queue.get(True)
+                print("********** ", data)
+                self.lsp_receiver_queue.task_done()
+        except:
+            logger.error(traceback.format_exc())
+
     def receive_message(self, message):
         self.message_queue.put(message)
 
+    def receive_lsp_message(self, message):
+        self.lsp_receiver_queue.put(message)
+
     @threaded
     def lsp_request(self, remote_file_host, remote_file_path, method, args):
-        # self.send_message(remote_file_host, {
-        #     "command": "lsp_request",
-        #     "server": remote_file_host,
-        #     "path": remote_file_path,
-        #     "method": method,
-        #     "args": list(map(epc_arg_transformer, args))
-        # })
-
         if method == "change_file":
             self.send_message(remote_file_host, {
                 "command": "change_file",
@@ -125,6 +150,14 @@ class Nova:
                 "path": remote_file_path,
                 "args": list(map(epc_arg_transformer, args))
             })
+
+        self.send_lsp_message(remote_file_host, {
+            "command": "lsp_request",
+            "server": remote_file_host,
+            "path": remote_file_path,
+            "method": method,
+            "args": list(map(epc_arg_transformer, args))
+        })
 
     @threaded
     def save_file(self, remote_file_host, remote_file_path):
@@ -165,7 +198,18 @@ class Nova:
             self.client_dict[server_host] = client
 
         return client
-        
+
+    def get_lsp_client_by_host(self, server_host):
+        if server_host in self.lsp_client_dict:
+            client = self.lsp_client_dict[server_host]
+        else:
+            client = Client(server_host, "root", 9998, self.receive_lsp_message)
+            client.start()
+
+            self.lsp_client_dict[server_host] = client
+
+        return client
+
     @threaded
     def open_file(self, path):
         if is_valid_ip_path(path):
@@ -183,6 +227,12 @@ class Nova:
 
     def send_message(self, host, message):
         self.event_queue.put({
+            "host": host,
+            "message": message
+        })
+
+    def send_lsp_message(self, host, message):
+        self.lsp_sender_queue.put({
             "host": host,
             "message": message
         })
