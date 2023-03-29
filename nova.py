@@ -57,17 +57,17 @@ class Nova:
         self.nova_sender_thread = threading.Thread(target=self.send_message_dispatcher, args=(self.nova_sender_queue, 9999))
         self.nova_sender_thread.start()
 
-        self.lsp_sender_queue = queue.Queue()
-        self.lsp_sender_thread = threading.Thread(target=self.send_message_dispatcher, args=(self.lsp_sender_queue, 9998))
-        self.lsp_sender_thread.start()
+        self.lsp_bridge_sender_queue = queue.Queue()
+        self.lsp_bridge_sender_thread = threading.Thread(target=self.send_message_dispatcher, args=(self.lsp_bridge_sender_queue, 9998))
+        self.lsp_bridge_sender_thread.start()
 
         self.nova_receiver_queue = queue.Queue()
         self.nova_receiver_thread = threading.Thread(target=self.receive_message_dispatcher, args=(self.nova_receiver_queue, self.handle_nova_message))
         self.nova_receiver_thread.start()
 
-        self.lsp_receiver_queue = queue.Queue()
-        self.lsp_receiver_thread = threading.Thread(target=self.receive_message_dispatcher, args=(self.lsp_receiver_queue, self.handle_lsp_message))
-        self.lsp_receiver_thread.start()
+        self.lsp_bridge_receiver_queue = queue.Queue()
+        self.lsp_bridge_receiver_thread = threading.Thread(target=self.receive_message_dispatcher, args=(self.lsp_bridge_receiver_queue, self.handle_lsp_message))
+        self.lsp_bridge_receiver_thread.start()
 
         # Build thread queue.
         self.thread_queue = []
@@ -157,7 +157,7 @@ class Nova:
         if server_port == 9999:
             self.nova_receiver_queue.put(message)
         elif server_port == 9998:
-            self.lsp_receiver_queue.put(message)
+            self.lsp_bridge_receiver_queue.put(message)
 
     @threaded
     def lsp_request(self, remote_file_host, remote_file_path, method, args):
@@ -169,8 +169,18 @@ class Nova:
                 "args": list(map(epc_arg_transformer, args))
             })
 
-        self.send_lsp_message(remote_file_host, {
+        self.send_lsp_bridge_message(remote_file_host, {
             "command": "lsp_request",
+            "server": remote_file_host,
+            "path": remote_file_path,
+            "method": method,
+            "args": list(map(epc_arg_transformer, args))
+        })
+
+    @threaded
+    def search_request(self, remote_file_host, remote_file_path, method, args):
+        self.send_lsp_bridge_message(remote_file_host, {
+            "command": "search_request",
             "server": remote_file_host,
             "path": remote_file_path,
             "method": method,
@@ -199,8 +209,8 @@ class Nova:
             "message": message
         })
 
-    def send_lsp_message(self, host, message):
-        self.lsp_sender_queue.put({
+    def send_lsp_bridge_message(self, host, message):
+        self.lsp_bridge_sender_queue.put({
             "host": host,
             "message": message
         })
