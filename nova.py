@@ -62,7 +62,7 @@ class Nova:
         self.lsp_sender_thread.start()
 
         self.nova_receiver_queue = queue.Queue()
-        self.nova_receiver_thread = threading.Thread(target=self.receive_message_dispatcher, args=(self.nova_receiver_queue, self.handle_message))
+        self.nova_receiver_thread = threading.Thread(target=self.receive_message_dispatcher, args=(self.nova_receiver_queue, self.handle_nova_message))
         self.nova_receiver_thread.start()
 
         self.lsp_receiver_queue = queue.Queue()
@@ -87,49 +87,40 @@ class Nova:
             while True:
                 data = queue.get(True)
 
-                client = self.get_client(data["host"], port)
+                client = self.get_socket_client(data["host"], port)
                 client.send_message(data["message"])
 
                 queue.task_done()
         except:
             logger.error(traceback.format_exc())
 
-    def receive_message_dispatcher(self, queue, handle_message):
+    def receive_message_dispatcher(self, queue, handle_nova_message):
         try:
             while True:
                 message = queue.get(True)
-                handle_message(message)
+                handle_nova_message(message)
                 queue.task_done()
         except:
             logger.error(traceback.format_exc())
 
-    def receive_client_message(self, message, server_port):
-        if server_port == 9999:
-            self.nova_receiver_queue.put(message)
-        elif server_port == 9998:
-            self.lsp_receiver_queue.put(message)
-
     @threaded
-    def lsp_request(self, remote_file_host, remote_file_path, method, args):
-        if method == "change_file":
-            self.send_message(remote_file_host, {
-                "command": "change_file",
-                "server": remote_file_host,
-                "path": remote_file_path,
-                "args": list(map(epc_arg_transformer, args))
-            })
+    def open_file(self, path):
+        if is_valid_ip_path(path):
+            [server_host, server_path] = path.split(":")
 
-        self.send_lsp_message(remote_file_host, {
-            "command": "lsp_request",
-            "server": remote_file_host,
-            "path": remote_file_path,
-            "method": method,
-            "args": list(map(epc_arg_transformer, args))
-        })
+            message_emacs(f"Open file {server_path}...")
+
+            self.send_nova_message(server_host, {
+                "command": "open_file",
+                "server": server_host,
+                "path": server_path
+            })
+        else:
+            message_emacs("Please input valid path match rule: 'ip:/path/file'.")
 
     @threaded
     def save_file(self, remote_file_host, remote_file_path):
-        self.send_message(remote_file_host, {
+        self.send_nova_message(remote_file_host, {
             "command": "save_file",
             "server": remote_file_host,
             "path": remote_file_path
@@ -137,14 +128,14 @@ class Nova:
 
     @threaded
     def close_file(self, remote_file_host, remote_file_path):
-        self.send_message(remote_file_host, {
+        self.send_nova_message(remote_file_host, {
             "command": "close_file",
             "server": remote_file_host,
             "path": remote_file_path
         })
 
     @threaded
-    def handle_message(self, message):
+    def handle_nova_message(self, message):
         data = json.loads(message)
         command = data["command"]
 
@@ -162,7 +153,31 @@ class Nova:
         if data["command"] == "eval-in-emacs":
             eval_sexp_in_emacs(data["sexp"])
 
-    def get_client(self, server_host, server_port):
+    def receive_socket_message(self, message, server_port):
+        if server_port == 9999:
+            self.nova_receiver_queue.put(message)
+        elif server_port == 9998:
+            self.lsp_receiver_queue.put(message)
+
+    @threaded
+    def lsp_request(self, remote_file_host, remote_file_path, method, args):
+        if method == "change_file":
+            self.send_nova_message(remote_file_host, {
+                "command": "change_file",
+                "server": remote_file_host,
+                "path": remote_file_path,
+                "args": list(map(epc_arg_transformer, args))
+            })
+
+        self.send_lsp_message(remote_file_host, {
+            "command": "lsp_request",
+            "server": remote_file_host,
+            "path": remote_file_path,
+            "method": method,
+            "args": list(map(epc_arg_transformer, args))
+        })
+
+    def get_socket_client(self, server_host, server_port):
         client_id = f"{server_host}:{server_port}"
 
         if client_id in self.client_dict:
@@ -171,29 +186,14 @@ class Nova:
             client = Client(server_host,
                             "root",
                             server_port,
-                            lambda message: self.receive_client_message(message, server_port))
+                            lambda message: self.receive_socket_message(message, server_port))
             client.start()
 
             self.client_dict[client_id] = client
 
         return client
 
-    @threaded
-    def open_file(self, path):
-        if is_valid_ip_path(path):
-            [server_host, server_path] = path.split(":")
-
-            message_emacs(f"Open file {server_path}...")
-
-            self.send_message(server_host, {
-                "command": "open_file",
-                "server": server_host,
-                "path": server_path
-            })
-        else:
-            message_emacs("Please input valid path match rule: 'ip:/path/file'.")
-
-    def send_message(self, host, message):
+    def send_nova_message(self, host, message):
         self.nova_sender_queue.put({
             "host": host,
             "message": message
