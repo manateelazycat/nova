@@ -99,7 +99,7 @@ class Nova:
             while True:
                 data = self.event_queue.get(True)
 
-                client = self.get_client_by_host(data["host"])
+                client = self.get_client(data["host"], 9999)
                 client.send_message(data["message"])
 
                 self.event_queue.task_done()
@@ -120,7 +120,7 @@ class Nova:
             while True:
                 data = self.lsp_sender_queue.get(True)
 
-                client = self.get_lsp_client_by_host(data["host"])
+                client = self.get_client(data["host"], 9998)
                 client.send_message(data["message"])
 
                 self.lsp_sender_queue.task_done()
@@ -140,11 +140,11 @@ class Nova:
         except:
             logger.error(traceback.format_exc())
 
-    def receive_message(self, message):
-        self.message_queue.put(message)
-
-    def receive_lsp_message(self, message):
-        self.lsp_receiver_queue.put(message)
+    def receive_client_message(self, message, server_port):
+        if server_port == 9999:
+            self.message_queue.put(message)
+        elif server_port == 9998:
+            self.lsp_receiver_queue.put(message)
 
     @threaded
     def lsp_request(self, remote_file_host, remote_file_path, method, args):
@@ -193,25 +193,19 @@ class Nova:
                 eval_in_emacs("nova-open-file--response", data["server"], path, string_to_base64(data["content"]))
                 message_emacs(f"Open file {path} done.")
 
-    def get_client_by_host(self, server_host):
-        if server_host in self.client_dict:
-            client = self.client_dict[server_host]
+    def get_client(self, server_host, server_port):
+        client_id = f"{server_host}:{server_port}"
+
+        if client_id in self.client_dict:
+            client = self.client_dict[client_id]
         else:
-            client = Client(server_host, "root", 9999, self.receive_message)
+            client = Client(server_host,
+                            "root",
+                            server_port,
+                            lambda message: self.receive_client_message(message, server_port))
             client.start()
 
-            self.client_dict[server_host] = client
-
-        return client
-
-    def get_lsp_client_by_host(self, server_host):
-        if server_host in self.lsp_client_dict:
-            client = self.lsp_client_dict[server_host]
-        else:
-            client = Client(server_host, "root", 9998, self.receive_lsp_message)
-            client.start()
-
-            self.lsp_client_dict[server_host] = client
+            self.client_dict[client_id] = client
 
         return client
 
