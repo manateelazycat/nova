@@ -45,40 +45,28 @@ class Nova:
         # Init EPC client port.
         init_epc_client(int(args[0]))
 
-        # Build EPC server.
         self.server = ThreadingEPCServer(('localhost', 0), log_traceback=True)
-        # self.server.logger.setLevel(logging.DEBUG)
         self.server.allow_reuse_address = True
-
-        # ch = logging.FileHandler(filename=os.path.join(nova_config_dir, 'epc_log.txt'), mode='w')
-        # formatter = logging.Formatter('%(asctime)s | %(levelname)-8s | %(lineno)04d | %(message)s')
-        # ch.setFormatter(formatter)
-        # ch.setLevel(logging.DEBUG)
-        # self.server.logger.addHandler(ch)
-        # self.server.logger = logger
 
         self.server.register_instance(self)  # register instance functions let elisp side call
 
-        # Start EPC server with sub-thread, avoid block Qt main loop.
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.start()
         
-        # All Emacs request running in event_loop.
-        self.event_queue = queue.Queue()
-        self.event_loop = threading.Thread(target=self.event_dispatcher)
-        self.event_loop.start()
-
-        # All SSH server response running in message_thread.
-        self.message_queue = queue.Queue()
-        self.message_thread = threading.Thread(target=self.message_dispatcher)
-        self.message_thread.start()
+        self.nova_sender_queue = queue.Queue()
+        self.nova_sender_thread = threading.Thread(target=self.send_message_dispatcher, args=(self.nova_sender_queue, 9999))
+        self.nova_sender_thread.start()
 
         self.lsp_sender_queue = queue.Queue()
-        self.lsp_sender_thread = threading.Thread(target=self.lsp_sender_dispatcher)
+        self.lsp_sender_thread = threading.Thread(target=self.send_message_dispatcher, args=(self.lsp_sender_queue, 9998))
         self.lsp_sender_thread.start()
 
+        self.nova_receiver_queue = queue.Queue()
+        self.nova_receiver_thread = threading.Thread(target=self.receive_message_dispatcher, args=(self.nova_receiver_queue, self.handle_message))
+        self.nova_receiver_thread.start()
+
         self.lsp_receiver_queue = queue.Queue()
-        self.lsp_receiver_thread = threading.Thread(target=self.lsp_receiver_dispatcher)
+        self.lsp_receiver_thread = threading.Thread(target=self.receive_message_dispatcher, args=(self.lsp_receiver_queue, self.handle_lsp_message))
         self.lsp_receiver_thread.start()
 
         # Build thread queue.
@@ -91,58 +79,33 @@ class Nova:
         # Pass epc port and webengine codec information to Emacs when first start nova.
         eval_in_emacs('nova--first-start', self.server.server_address[1])
 
-        # event_loop never exit, simulation event loop.
-        self.event_loop.join()
+        # nova_sender_thread never exit, simulation event loop.
+        self.nova_sender_thread.join()
 
-    def event_dispatcher(self):
+    def send_message_dispatcher(self, queue, port):
         try:
             while True:
-                data = self.event_queue.get(True)
+                data = queue.get(True)
 
-                client = self.get_client(data["host"], 9999)
+                client = self.get_client(data["host"], port)
                 client.send_message(data["message"])
 
-                self.event_queue.task_done()
+                queue.task_done()
         except:
             logger.error(traceback.format_exc())
 
-    def message_dispatcher(self):
+    def receive_message_dispatcher(self, queue, handle_message):
         try:
             while True:
-                message = self.message_queue.get(True)
-                self.handle_message(message)
-                self.message_queue.task_done()
-        except:
-            logger.error(traceback.format_exc())
-
-    def lsp_sender_dispatcher(self):
-        try:
-            while True:
-                data = self.lsp_sender_queue.get(True)
-
-                client = self.get_client(data["host"], 9998)
-                client.send_message(data["message"])
-
-                self.lsp_sender_queue.task_done()
-        except:
-            logger.error(traceback.format_exc())
-
-    def lsp_receiver_dispatcher(self):
-        try:
-            while True:
-                message = self.lsp_receiver_queue.get(True)
-
-                data = json.loads(message)
-                if data["command"] == "eval-in-emacs":
-                    eval_sexp_in_emacs(data["sexp"])
-
-                self.lsp_receiver_queue.task_done()
+                message = queue.get(True)
+                handle_message(message)
+                queue.task_done()
         except:
             logger.error(traceback.format_exc())
 
     def receive_client_message(self, message, server_port):
         if server_port == 9999:
-            self.message_queue.put(message)
+            self.nova_receiver_queue.put(message)
         elif server_port == 9998:
             self.lsp_receiver_queue.put(message)
 
@@ -193,6 +156,12 @@ class Nova:
                 eval_in_emacs("nova-open-file--response", data["server"], path, string_to_base64(data["content"]))
                 message_emacs(f"Open file {path} done.")
 
+    @threaded
+    def handle_lsp_message(self, message):
+        data = json.loads(message)
+        if data["command"] == "eval-in-emacs":
+            eval_sexp_in_emacs(data["sexp"])
+
     def get_client(self, server_host, server_port):
         client_id = f"{server_host}:{server_port}"
 
@@ -225,7 +194,7 @@ class Nova:
             message_emacs("Please input valid path match rule: 'ip:/path/file'.")
 
     def send_message(self, host, message):
-        self.event_queue.put({
+        self.nova_sender_queue.put({
             "host": host,
             "message": message
         })
