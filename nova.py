@@ -178,9 +178,9 @@ class Nova:
         })
 
     @threaded
-    def search_request(self, remote_file_host, remote_file_path, method, args):
+    def func_request(self, remote_file_host, remote_file_path, method, args):
         self.send_lsp_bridge_message(remote_file_host, {
-            "command": "search_request",
+            "command": "func_request",
             "server": remote_file_host,
             "path": remote_file_path,
             "method": method,

@@ -310,10 +310,10 @@ Then Nova will start by gdb, please send new issue with `*nova*' buffer content 
                             (append
                              (list nova-remote-file-host nova-remote-file-path method) args))))
 
-(defun nova-send-search-request (method &rest args)
+(defun nova-send-func-request (method &rest args)
   (nova-deferred-chain
     (nova-epc-call-deferred nova-epc-process
-                            (read "search_request")
+                            (read "func_request")
                             (append
                              (list nova-remote-file-host nova-remote-file-path method) args))))
 
